@@ -1,76 +1,95 @@
-import { Module } from 'vuex'
+import type { Module } from 'vuex'
+import type { ILoginState } from './types'
+import type { IRootState } from '../types'
+
+import router from '@/router'
 
 import {
   accountLoginRequest,
-  requestUserInfoById,
-  requestUserMenusByRoleId
+  getUserById,
+  getUserMenus
 } from '@/service/login/login'
 import localCache from '@/utils/cache'
-import router from '@/router'
+import { menuMapToRoutes, menuMapToPermissions } from '@/utils/map-menu'
 
-import { IAccount } from '@/service/login/type'
-import { ILoginState } from './types'
-import { IRootState } from '../types'
-
-const loginModule: Module<ILoginState, IRootState> = {
+const login: Module<ILoginState, IRootState> = {
   namespaced: true,
   state() {
     return {
       token: '',
       userInfo: {},
-      userMenus: []
+      userMenus: {},
+      permissions: []
     }
   },
   getters: {},
   mutations: {
-    changeToken(state, token: string) {
+    saveToken(state, token: string) {
       state.token = token
     },
-    changeUserInfo(state, userInfo: any) {
+    saveUserInfo(state, userInfo: any) {
       state.userInfo = userInfo
     },
-    changeUserMenus(state, userMenus: any) {
+    saveUserMenus(state, userMenus: any) {
       state.userMenus = userMenus
+
+      // 根据菜单映射路由
+      const routes = menuMapToRoutes(userMenus)
+      routes.forEach((route) => {
+        router.addRoute('main', route)
+      })
+
+      // 检查按钮的权限
+      const permissions = menuMapToPermissions(userMenus)
+      state.permissions = permissions
     }
   },
   actions: {
-    async accountLoginAction({ commit }, payload: IAccount) {
-      // 1.实现登录逻辑
-      const loginResult = await accountLoginRequest(payload)
-      const { id, token } = loginResult.data
-      commit('changeToken', token)
+    async accountLoginAction(
+      { commit, dispatch },
+      account: { name: string; password: string }
+    ) {
+      // 1.用户登录
+      const loginResult = await accountLoginRequest(account)
+      const { id, token } = loginResult
+      console.log(id, token)
+      commit('saveToken', token)
       localCache.setCache('token', token)
 
-      // 2.请求用户信息
-      const userInfoResult = await requestUserInfoById(id)
-      const userInfo = userInfoResult.data
-      commit('changeUserInfo', userInfo)
+      // 2.获取用户信息
+      const userInfo = await getUserById(id)
+      console.log(userInfo)
+      commit('saveUserInfo', userInfo)
       localCache.setCache('userInfo', userInfo)
 
-      // 3.请求用户菜单
-      const userMenusResult = await requestUserMenusByRoleId(userInfo.role.id)
-      const userMenus = userMenusResult.data
-      commit('changeUserMenus', userMenus)
+      // 3.用户菜单树
+      const userMenus = await getUserMenus(userInfo.role.id)
+      console.log(userMenus)
+      commit('saveUserMenus', userMenus)
       localCache.setCache('userMenus', userMenus)
 
-      // 4.跳到首页
+      // 4.请求完全的角色和部门
+      dispatch('getInitalDataAction', null, { root: true })
+
+      // 跳转到首页
       router.push('/main')
     },
-    loadLocalLogin({ commit }) {
+    loadLocalCache({ commit, dispatch }) {
       const token = localCache.getCache('token')
       if (token) {
-        commit('changeToken', token)
+        commit('saveToken', token)
+        dispatch('getInitalDataAction', null, { root: true })
       }
       const userInfo = localCache.getCache('userInfo')
       if (userInfo) {
-        commit('changeUserInfo', userInfo)
+        commit('saveUserInfo', userInfo)
       }
       const userMenus = localCache.getCache('userMenus')
       if (userMenus) {
-        commit('changeUserMenus', userMenus)
+        commit('saveUserMenus', userMenus)
       }
     }
   }
 }
 
-export default loginModule
+export default login

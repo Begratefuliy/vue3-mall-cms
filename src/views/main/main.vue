@@ -6,9 +6,13 @@
       </el-aside>
       <el-container class="page">
         <el-header class="page-header">
-          <nav-header @foldChange="handleFoldChange" />
+          <nav-header @foldChange="foldChange" />
         </el-header>
-        <el-main class="page-content">Main</el-main>
+        <el-main class="page-content">
+          <div class="content">
+            <router-view></router-view>
+          </div>
+        </el-main>
       </el-container>
     </el-container>
   </div>
@@ -25,14 +29,15 @@ export default defineComponent({
     NavHeader
   },
   setup() {
+    // 1.保存是否当前处于折叠状态
     const isCollapse = ref(false)
-    const handleFoldChange = (isFold: boolean) => {
+    const foldChange = (isFold: boolean) => {
       isCollapse.value = isFold
     }
 
     return {
       isCollapse,
-      handleFoldChange
+      foldChange
     }
   }
 })
@@ -54,6 +59,11 @@ export default defineComponent({
 
 .page-content {
   height: calc(100% - 48px);
+
+  .content {
+    background-color: #fff;
+    border-radius: 8px;
+  }
 }
 
 .el-header,
